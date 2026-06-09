@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lunehub · Geographic Spend (Prototype)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --lune-green:#1f6f5c;--lune-green-soft:#e7f1ee;--ink:#1c2024;--muted:#6b7280;
+    --line:#e7e8ea;--bg:#f6f7f6;--card:#ffffff;--pulse:#7b3ff2;--pulse-soft:#f1ebfd;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);}
+  .app{display:flex;height:100vh;overflow:hidden;}
+  /* Sidebar */
+  .sidebar{width:230px;flex:0 0 230px;background:#fff;border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;}
+  .brand{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;margin:4px 6px 26px;}
+  .brand .dot{width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#2f8f76,#123f34);}
+  .nav-group{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#9aa0a6;margin:16px 8px 6px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:#3b4046;font-size:14px;cursor:default;margin-bottom:2px;}
+  .nav-item.sub{padding-left:30px;font-size:13.5px;}
+  .nav-item.active{background:var(--lune-green-soft);color:var(--lune-green);font-weight:600;}
+  .nav-item .ic{width:16px;height:16px;border-radius:4px;background:#cfd4d2;opacity:.7;flex:0 0 16px;}
+  .nav-item.active .ic{background:var(--lune-green);opacity:1;}
+  .spacer{flex:1;}
+  .user{display:flex;align-items:center;gap:10px;padding:8px;border-top:1px solid var(--line);}
+  .user .av{width:30px;height:30px;border-radius:50%;background:var(--lune-green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;}
+  .user small{display:block;color:var(--muted);font-size:11px;}
+  /* Main */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .topbar{padding:18px 26px 12px;border-bottom:1px solid var(--line);background:#fff;}
+  .topbar h1{margin:0;font-size:21px;}
+  .topbar .sub{color:var(--muted);font-size:13px;margin-top:3px;}
+  .filters{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap;}
+  select,.pill{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 12px;color:var(--ink);cursor:pointer;}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+  .seg button{border:0;background:#fff;padding:8px 12px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;}
+  .seg button.on{background:var(--lune-green);color:#fff;font-weight:600;}
+  .filters .lbl{font-size:12px;color:#9aa0a6;margin-left:4px;}
+  /* KPI row */
+  .kpis{display:flex;gap:14px;padding:16px 26px 4px;}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 16px;flex:1;}
+  .kpi .k{font-size:12px;color:var(--muted);}
+  .kpi .v{font-size:20px;font-weight:700;margin-top:4px;}
+  /* Content split */
+  .content{flex:1;display:flex;gap:16px;padding:14px 26px 22px;overflow:hidden;}
+  #map{flex:1;border-radius:14px;border:1px solid var(--line);min-height:300px;}
+  .leaflet-container{background:#eef1f3;border-radius:14px;font:inherit;}
+  /* Right panel */
+  .panel{width:360px;flex:0 0 360px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;overflow-y:auto;}
+  .panel h2{margin:0;font-size:17px;}
+  .panel .city-sub{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .panel .empty{color:#9aa0a6;font-size:13.5px;line-height:1.5;margin-top:14px;}
+  .metric-mini{display:flex;gap:8px;margin:16px 0 6px;flex-wrap:wrap;}
+  .metric-mini .m{flex:1;min-width:74px;background:var(--bg);border-radius:10px;padding:9px 11px;}
+  .metric-mini .m .k{font-size:11px;color:var(--muted);}
+  .metric-mini .m .v{font-size:15px;font-weight:700;margin-top:3px;}
+  .sec-title{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#9aa0a6;margin:20px 0 9px;display:flex;justify-content:space-between;align-items:center;}
+  .sec-title a{color:var(--lune-green);text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer;text-decoration:none;}
+  .bar-row{display:flex;align-items:center;gap:9px;margin-bottom:8px;font-size:13px;}
+  .bar-row.click{cursor:pointer;}
+  .bar-row.click:hover .nm{color:var(--lune-green);}
+  .bar-row .nm{width:108px;flex:0 0 108px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bar-row .track{flex:1;height:9px;background:#eef0f1;border-radius:5px;overflow:hidden;}
+  .bar-row .fill{height:100%;border-radius:5px;}
+  .bar-row .val{width:64px;flex:0 0 64px;text-align:right;color:var(--muted);font-size:12px;}
+  /* demographics */
+  .gbar{display:flex;height:22px;border-radius:6px;overflow:hidden;font-size:11px;color:#fff;margin:6px 0 10px;font-weight:600;}
+  .gbar .m{background:#2f6be0;display:flex;align-items:center;justify-content:center;}
+  .gbar .f{background:#ec58a0;display:flex;align-items:center;justify-content:center;}
+  .nats{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  .nat{background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:3px 9px;font-size:12px;color:var(--muted);}
+  .nat b{color:var(--ink);}
+  /* Pulse card */
+  .pulse{margin-top:22px;border:1px solid #e6dafa;background:linear-gradient(180deg,var(--pulse-soft),#fff);border-radius:13px;padding:15px;}
+  .pulse .tag{display:inline-flex;align-items:center;gap:6px;background:var(--pulse);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.03em;}
+  .pulse .tag::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;}
+  .pulse p{font-size:13.5px;line-height:1.55;margin:11px 0 0;}
+  .pulse .hl{color:var(--pulse);font-weight:700;}
+  .pulse .stats{display:flex;gap:8px;margin-top:13px;}
+  .pulse .stats .s{flex:1;background:#fff;border:1px solid #ece4fb;border-radius:9px;padding:8px 9px;}
+  .pulse .stats .s .k{font-size:10px;color:var(--muted);}
+  .pulse .stats .s .v{font-size:14px;font-weight:700;color:var(--pulse);margin-top:2px;}
+  .pulse button{margin-top:13px;width:100%;border:0;background:var(--pulse);color:#fff;font:inherit;font-weight:600;font-size:13.5px;padding:10px;border-radius:9px;cursor:pointer;}
+  .pulse button:hover{filter:brightness(1.06);}
+  .legend{position:absolute;z-index:500;right:384px;bottom:34px;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:11.5px;max-width:210px;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+  .legend .li{display:flex;align-items:center;gap:7px;margin:3px 0;}
+  .legend .sw{width:11px;height:11px;border-radius:3px;flex:0 0 11px;}
+  .legend .hd{font-weight:700;margin-bottom:5px;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#9aa0a6;}
+  .legend .grad{height:10px;border-radius:5px;background:linear-gradient(90deg,#fee6ce,#fdae6b,#f16913,#8c2d04);margin:4px 0 3px;}
+  .legend .grad-lbl{display:flex;justify-content:space-between;color:var(--muted);font-size:10.5px;}
+  .legend .foot{margin-top:7px;padding-top:6px;border-top:1px solid var(--line);color:#9aa0a6;font-size:10.5px;}
+  .note{font-size:11px;color:#9aa0a6;margin-top:9px;}
+  .badge{background:var(--lune-green-soft);color:var(--lune-green);font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="dot"></span> Lune</div>
+    <div class="nav-item"><span class="ic"></span> Overview</div>
+    <div class="nav-group">Enrichment</div>
+    <div class="nav-item sub"><span class="ic"></span> Transactions</div>
+    <div class="nav-group">Analytics</div>
+    <div class="nav-item sub"><span class="ic"></span> Dashboard</div>
+    <div class="nav-item sub"><span class="ic"></span> Brands</div>
+    <div class="nav-item sub"><span class="ic"></span> Categories</div>
+    <div class="nav-item sub active"><span class="ic"></span> Map <span class="badge" style="margin-left:auto;">New</span></div>
+    <div class="nav-item sub"><span class="ic"></span> Customer Explorer</div>
+    <div class="spacer"></div>
+    <div class="user"><span class="av">DJ</span><div>Dennis Jedburgh<small>Manual Migration Plan</small></div></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h1>Geographic Spend</h1>
+      <div class="sub">Where your customers spend — heatmap of spend by country &amp; city, with brand, category, demographic and Pulse-offer detail.</div>
+      <div class="filters">
+        <select id="bankSel">
+          <option value="uae">Mawarid Bank — UAE (expanding)</option>
+          <option value="ksa">Najd Bank — Saudi Arabia (domestic)</option>
+          <option value="eu">Meridian Bank — Europe</option>
+        </select>
+        <select id="catSel"></select>
+        <span class="lbl">Size by</span>
+        <div class="seg" id="metricSeg">
+          <button data-m="spend" class="on">Spend</button>
+          <button data-m="customers">Customers</button>
+          <button data-m="txns">Transactions</button>
+          <button data-m="spc">Spend/Cust</button>
+        </div>
+        <span class="lbl">Colour by</span>
+        <div class="seg" id="colourSeg">
+          <button data-c="heat" class="on">Spend heat</button>
+          <button data-c="category">Category affinity</button>
+          <button data-c="offer">Offer potential</button>
+        </div>
+        <span class="pill" style="margin-left:auto;">🇦🇪 AED ▾</span>
+        <span class="pill">Last 12 months ▾</span>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="content" style="position:relative;">
+      <div id="map"></div>
+      <div class="legend" id="legend"></div>
+      <div class="panel" id="panel"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ---------- palette + formatting ---------- */
+const CAT_COLORS = {
+  'Transfer':'#2b2f3a','Miscellaneous':'#e8830c','Services':'#7c5cfc','Financial Services':'#34c77b',
+  'Income':'#ef4136','Household':'#2f6be0','Shopping':'#c0278e','Transportation':'#ec58a0',
+  'Dining':'#1faf6a','Wellness':'#22b3c9','Insurance':'#9aa0a6','Groceries':'#e0a92f','Travel':'#5b8def'
+};
+const fmtAED = m => m>=1000 ? 'AED '+(m/1000).toFixed(2)+'B' : 'AED '+m.toFixed(0)+'M';
+const fmtNum = n => n>=1000 ? (n/1000).toFixed(n>=10000?0:1)+'k' : ''+Math.round(n);
+const fmtCommas = n => 'AED '+Math.round(n).toLocaleString('en-US');
+function heatColor(r){
+  return r>0.85?'#8c2d04':r>0.70?'#d94801':r>0.55?'#f16913':r>0.40?'#fd8d3c':r>0.25?'#fdae6b':r>0.12?'#fdd0a2':r>0?'#fee6ce':'#f0f0f0';
+}
+
+/* ---------- deterministic rng ---------- */
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function rng(seed){let s=hashStr(seed)||123;return ()=>{s=(Math.imul(s,1103515245)+12345)>>>0;return s/4294967296;};}
+
+/* ---------- reference data ---------- */
+const BASE_MIX = {
+  'Transfer':.20,'Miscellaneous':.13,'Services':.11,'Financial Services':.07,'Dining':.09,
+  'Shopping':.08,'Household':.06,'Transportation':.05,'Wellness':.04,'Groceries':.05,
+  'Travel':.03,'Insurance':.03,'Income':.03
+};
+const SUBCATS = {
+  'Dining':['Food Delivery','Restaurants','Cafés','Fast Food'],
+  'Shopping':['Marketplace','Apparel','Electronics','Luxury'],
+  'Groceries':['Supermarkets','Convenience','Specialty Food'],
+  'Travel':['Airlines','Hotels','Travel Agencies','Car Rental'],
+  'Transportation':['Ride-hailing','Fuel','Public Transit','Auto'],
+  'Wellness':['Pharmacy','Fitness','Beauty','Clinics'],
+  'Transfer':['Remittance','P2P','Own Account'],
+  'Financial Services':['Brokerage','Lending','Cards','FX'],
+  'Household':['Rent','Utilities','Furniture','Telecom'],
+  'Services':['Government','Professional','Subscriptions'],
+  'Insurance':['Health','Motor','Life'],
+  'Income':['Salary','Refunds'],
+  'Miscellaneous':['Other','Uncategorised']
+};
+const BRAND_POOL = {
+  'Dining':['Talabat','Deliveroo','Shake Shack','HungerStation','Starbucks'],
+  'Shopping':['Noon','Amazon','Namshi','Topshop','Galeries Lafayette'],
+  'Groceries':['Carrefour','Panda','Spinneys','Lulu'],
+  'Transportation':['Careem','Uber','Park Lane Motors','ENOC'],
+  'Travel':['Emirates','Almosafer','Marriott','Booking.com','Iberia'],
+  'Financial Services':['ITCard','Emirates NBD','Equiti Trade'],
+  'Household':['DAMAC Properties','IKEA','Etisalat','Keyper'],
+  'Services':['Dubai Holding','Digital Dubai'],
+  'Wellness':['Nahdi','Bupa','GMG Health'],
+  'Transfer':['Western Union','Lulu Exchange'],
+  'Insurance':['Bupa Insurance','Sukoon'],
+  'Miscellaneous':['Eternal Jewels','Kyosuke Motors']
+};
+const NAT_POOL = {
+  'United Arab Emirates':['Indian','Emirati','Pakistani','Filipino','British','Egyptian'],
+  'Saudi Arabia':['Saudi','Indian','Egyptian','Pakistani','Filipino','Yemeni'],
+  'United Kingdom':['British','Indian','Polish','Pakistani','Irish'],
+  'France':['French','Algerian','Moroccan','Portuguese','Italian'],
+  'Germany':['German','Turkish','Polish','Syrian','Italian'],
+  'Netherlands':['Dutch','Turkish','Moroccan','Polish','German'],
+  'Spain':['Spanish','Moroccan','Romanian','Colombian','British']
+};
+const GULF = new Set(['United Arab Emirates','Saudi Arabia']);
+const AGE_BANDS=['18-24','25-34','35-44','45-54','55+'];
+
+/* ---------- builders ---------- */
+function buildSubs(catName,catValue,seed){
+  const list=SUBCATS[catName]||['Other'];
+  const r=rng(seed+catName);
+  const w=list.map(()=>0.3+r());
+  const sum=w.reduce((a,b)=>a+b,0);
+  return list.map((n,i)=>({name:n,value:+(catValue*w[i]/sum).toFixed(1)})).sort((a,b)=>b.value-a.value);
+}
+function buildDemographics(city){
+  const r=rng('demo'+city.name+city.country);
+  const male = GULF.has(city.country) ? 0.55+r()*0.13 : 0.47+r()*0.09;
+  const baseAge=[0.14,0.32,0.27,0.16,0.11];
+  const raw=baseAge.map(b=>b*(0.8+r()*0.4));
+  const sum=raw.reduce((a,b)=>a+b,0);
+  const age={}; AGE_BANDS.forEach((b,i)=>age[b]=raw[i]/sum);
+  const dominantAge=AGE_BANDS[raw.indexOf(Math.max(...raw))];
+  const pool=NAT_POOL[city.country]||['Local','Indian','American'];
+  const used=new Set(),nats=[],p=[0.34,0.22,0.14];
+  for(let i=0;i<3;i++){let n;let g=0;do{n=pool[Math.floor(r()*pool.length)];g++;}while(used.has(n)&&g<20);used.add(n);nats.push({name:n,pct:p[i]*(0.85+r()*0.3)});}
+  return {male,age,dominantAge,nationalities:nats};
+}
+function buildCity(c){
+  const mix=Object.assign({},BASE_MIX);
+  mix[c.offer.category]=(mix[c.offer.category]||0.04)*c.offer.index;
+  const seed=c.name+c.country;
+  const allCats=Object.keys(mix).map(k=>{
+    const value=+(c.spendM*mix[k]).toFixed(1);
+    return {name:k,value,subs:buildSubs(k,value,seed)};
+  }).sort((a,b)=>b.value-a.value);
+  const catMap={}; allCats.forEach(x=>catMap[x.name]=x.value);
+  const categories=allCats.slice(0,6);
+  const brands=[];
+  categories.forEach(cat=>{
+    const pool=BRAND_POOL[cat.name]||[]; if(!pool.length)return;
+    const shares=[0.5,0.32];
+    pool.slice(0,2).forEach((b,i)=>{
+      const isOffer=b===c.offer.merchant;
+      brands.push({name:b,value:+(cat.value*(shares[i]||0.2)*(isOffer?1.3:1)).toFixed(1)});
+    });
+  });
+  if(!brands.find(b=>b.name===c.offer.merchant)) brands.push({name:c.offer.merchant,value:+(allCats[0].value*0.4).toFixed(1)});
+  brands.sort((a,b)=>b.value-a.value);
+  const demographics=buildDemographics(c);
+  return Object.assign({},c,{allCats,catMap,categories,brands:brands.slice(0,6),topCat:allCats[0].name,demographics});
+}
+
+const RAW = {
+  uae:{name:'Mawarid Bank',center:[26.5,49],zoom:5,cities:[
+    {name:'Dubai',coords:[25.20,55.27],country:'United Arab Emirates',spendM:1850,customers:42000,txnsK:5200,offer:{category:'Dining',index:2.0,merchant:'Talabat',audience:12400}},
+    {name:'Abu Dhabi',coords:[24.45,54.38],country:'United Arab Emirates',spendM:980,customers:26000,txnsK:2900,offer:{category:'Shopping',index:1.7,merchant:'Noon',audience:7800}},
+    {name:'Sharjah',coords:[25.35,55.39],country:'United Arab Emirates',spendM:410,customers:14500,txnsK:1300,offer:{category:'Groceries',index:1.6,merchant:'Carrefour',audience:5200}},
+    {name:'London',coords:[51.51,-0.13],country:'United Kingdom',spendM:320,customers:3100,txnsK:240,offer:{category:'Travel',index:2.6,merchant:'Marriott',audience:1450}},
+    {name:'Riyadh',coords:[24.71,46.68],country:'Saudi Arabia',spendM:150,customers:2200,txnsK:180,offer:{category:'Shopping',index:1.4,merchant:'Noon',audience:900}}
+  ]},
+  ksa:{name:'Najd Bank',center:[23.8,45],zoom:5,cities:[
+    {name:'Riyadh',coords:[24.71,46.68],country:'Saudi Arabia',spendM:2100,customers:48000,txnsK:5600,offer:{category:'Shopping',index:1.8,merchant:'Noon',audience:14200}},
+    {name:'Jeddah',coords:[21.49,39.19],country:'Saudi Arabia',spendM:1240,customers:31000,txnsK:3300,offer:{category:'Dining',index:1.6,merchant:'HungerStation',audience:9100}},
+    {name:'Dammam',coords:[26.43,50.10],country:'Saudi Arabia',spendM:560,customers:16000,txnsK:1500,offer:{category:'Groceries',index:1.5,merchant:'Panda',audience:5400}},
+    {name:'Mecca',coords:[21.39,39.86],country:'Saudi Arabia',spendM:430,customers:12500,txnsK:1100,offer:{category:'Travel',index:1.9,merchant:'Almosafer',audience:3800}},
+    {name:'Medina',coords:[24.52,39.57],country:'Saudi Arabia',spendM:290,customers:8800,txnsK:760,offer:{category:'Wellness',index:1.4,merchant:'Nahdi',audience:2600}}
+  ]},
+  eu:{name:'Meridian Bank',center:[48.5,6],zoom:4,cities:[
+    {name:'London',coords:[51.51,-0.13],country:'United Kingdom',spendM:1650,customers:52000,txnsK:6100,offer:{category:'Dining',index:1.7,merchant:'Deliveroo',audience:18400}},
+    {name:'Paris',coords:[48.86,2.35],country:'France',spendM:1120,customers:38000,txnsK:4200,offer:{category:'Shopping',index:1.8,merchant:'Galeries Lafayette',audience:12900}},
+    {name:'Berlin',coords:[52.52,13.40],country:'Germany',spendM:740,customers:29000,txnsK:3100,offer:{category:'Transportation',index:1.6,merchant:'Uber',audience:9800}},
+    {name:'Amsterdam',coords:[52.37,4.90],country:'Netherlands',spendM:520,customers:19000,txnsK:2000,offer:{category:'Dining',index:1.5,merchant:'Deliveroo',audience:7100}},
+    {name:'Madrid',coords:[40.42,-3.70],country:'Spain',spendM:480,customers:17500,txnsK:1850,offer:{category:'Travel',index:2.0,merchant:'Iberia',audience:6400}}
+  ]}
+};
+const BANKS={}; for(const k in RAW) BANKS[k]=Object.assign({},RAW[k],{cities:RAW[k].cities.map(buildCity)});
+
+/* ---------- state ---------- */
+let state={bank:'uae',metric:'spend',colour:'heat',category:'all',selected:null};
+function cities(){return BANKS[state.bank].cities;}
+
+function metricVal(c,m){
+  if(m==='spend')return c.spendM;
+  if(m==='customers')return c.customers;
+  if(m==='txns')return c.txnsK*1000;
+  if(m==='spc')return (c.spendM*1e6)/c.customers;
+  return c.spendM;
+}
+function sizeValue(c){ return state.category!=='all' ? (c.catMap[state.category]||0) : metricVal(c,state.metric); }
+function maxSize(){ return Math.max(...cities().map(sizeValue),1); }
+function countrySpend(){
+  const cs={};
+  cities().forEach(c=>{ const v=state.category!=='all'?(c.catMap[state.category]||0):c.spendM; cs[c.country]=(cs[c.country]||0)+v; });
+  return cs;
+}
+
+/* ---------- map ---------- */
+let map=L.map('map',{scrollWheelZoom:true,zoomControl:true}).setView([26,49],5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19,subdomains:'abcd'
+}).addTo(map);
+
+let geoLayer=null, markers=[], halos=[];
+function styleCountry(feature){
+  // In heat mode the heat is carried by per-city halos, so keep countries neutral.
+  if(state.colour==='heat'){
+    const cs=countrySpend(); const v=cs[feature.properties.name]||0;
+    return {fillColor:'#eef0f1',weight:v>0?0.7:0.4,color:'#fff',fillOpacity:v>0?0.45:0.25};
+  }
+  const cs=countrySpend(); const max=Math.max(...Object.values(cs),1);
+  const v=cs[feature.properties.name]||0;
+  return {fillColor:v>0?heatColor(v/max):'#eef0f1',weight:v>0?1.1:0.4,color:'#fff',fillOpacity:v>0?0.8:0.25};
+}
+fetch('https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json')
+  .then(r=>r.json())
+  .then(gj=>{ geoLayer=L.geoJSON(gj,{style:styleCountry}).addTo(map); geoLayer.bringToBack(); })
+  .catch(()=>{/* choropleth optional; bubbles still work */});
+
+function colourFor(c){
+  if(state.colour==='heat') return heatColor(sizeValue(c)/maxSize());
+  if(state.colour==='offer'){const i=c.offer.index;return i>=2?'#7b3ff2':i>=1.6?'#a878f5':'#cdb6f8';}
+  return CAT_COLORS[c.offer.category]||'#888';
+}
+function radiusFor(c){ return 10+30*Math.sqrt(sizeValue(c)/maxSize()); }
+function drawHalos(){
+  halos.forEach(h=>map.removeLayer(h)); halos=[];
+  if(state.colour!=='heat') return;
+  const mx=maxSize();
+  cities().forEach(c=>{
+    const r=sizeValue(c)/mx;
+    const meters=20000+80000*Math.sqrt(r);
+    const h=L.circle(c.coords,{radius:meters,stroke:false,fillColor:heatColor(r),fillOpacity:.28,interactive:false}).addTo(map);
+    halos.push(h);
+  });
+}
+function drawMarkers(){
+  markers.forEach(m=>map.removeLayer(m)); markers=[];
+  const ctxLabel = state.category!=='all' ? state.category+' spend' : ({spend:'Spend',customers:'Customers',txns:'Transactions',spc:'Spend/customer'})[state.metric];
+  cities().forEach(c=>{
+    const mk=L.circleMarker(c.coords,{radius:radiusFor(c),fillColor:colourFor(c),color:'#fff',weight:2,fillOpacity:.85}).addTo(map);
+    const sv=sizeValue(c);
+    const svFmt = state.category!=='all' ? fmtAED(sv) : (state.metric==='spc'?fmtCommas(sv):state.metric==='spend'?fmtAED(sv):fmtNum(sv));
+    mk.bindTooltip(`<b>${c.name}</b><br>${ctxLabel}: ${svFmt}<br>Over-indexes on: ${c.offer.category}`,{direction:'top'});
+    mk.on('click',()=>selectCity(c.name));
+    markers.push(mk);
+  });
+}
+function refreshMap(){ if(geoLayer) geoLayer.setStyle(styleCountry); drawHalos(); drawMarkers(); }
+
+/* ---------- panel ---------- */
+function barRows(items,colorFn,clickFn){
+  const max=Math.max(...items.map(i=>i.value),1);
+  return items.map(i=>`
+    <div class="bar-row ${clickFn?'click':''}" ${clickFn?`onclick="${clickFn}('${i.name.replace(/'/g,"")}')"`:''}>
+      <span class="nm">${i.name}</span>
+      <span class="track"><span class="fill" style="width:${Math.max(6,100*i.value/max)}%;background:${colorFn(i)}"></span></span>
+      <span class="val">${fmtAED(i.value)}</span>
+    </div>`).join('');
+}
+function demoHtml(d){
+  const female=1-d.male, ageMax=Math.max(...Object.values(d.age));
+  const ageRows=AGE_BANDS.map(b=>`<div class="bar-row"><span class="nm" style="width:46px;flex:0 0 46px">${b}</span><span class="track"><span class="fill" style="width:${Math.max(6,100*d.age[b]/ageMax)}%;background:#7c5cfc"></span></span><span class="val">${Math.round(100*d.age[b])}%</span></div>`).join('');
+  const nats=d.nationalities.map(n=>`<span class="nat"><b>${n.name}</b> ${Math.round(100*n.pct)}%</span>`).join('');
+  return `<div class="gbar"><span class="m" style="width:${(100*d.male).toFixed(0)}%">${Math.round(100*d.male)}% M</span><span class="f" style="width:${(100*female).toFixed(0)}%">${Math.round(100*female)}% F</span></div>${ageRows}<div class="nats">${nats}</div>`;
+}
+function emptyPanel(){ document.getElementById('panel').innerHTML='<h2>Select a city</h2><div class="empty">Click a bubble to see its top brands, categories, subcategories, demographics, and the Pulse offer it unlocks.<br><br>Country shading &amp; bubble colour show spend heat. Use the <b>category</b> filter to re-map a single category and drill into subcategories.</div>'; }
+
+function selectCity(name){
+  state.selected=name;
+  const c=cities().find(x=>x.name===name); const off=c.offer; const d=c.demographics;
+  const total=cities().reduce((s,x)=>s+x.spendM,0);
+  // top section: categories (all) or subcategories (filtered)
+  let topTitle,topRows;
+  if(state.category==='all'){
+    topTitle='Top categories <a onclick="return false">tap to filter →</a>';
+    topRows=barRows(c.categories.slice(0,5),i=>CAT_COLORS[i.name]||'#888','setCategory');
+  }else{
+    const cat=c.allCats.find(x=>x.name===state.category);
+    topTitle=`${state.category} · subcategories <a onclick="setCategory('all')">← all</a>`;
+    topRows=barRows((cat?cat.subs:[]).slice(0,5),()=>CAT_COLORS[state.category]||'#888');
+  }
+  const topSub=(c.allCats.find(x=>x.name===off.category)||{subs:[]}).subs[0];
+  document.getElementById('panel').innerHTML=`
+    <h2>${c.name}</h2>
+    <div class="city-sub">${BANKS[state.bank].name} · ${c.country} · ${(100*c.spendM/total).toFixed(1)}% of portfolio spend</div>
+    <div class="metric-mini">
+      <div class="m"><div class="k">Spend</div><div class="v">${fmtAED(c.spendM)}</div></div>
+      <div class="m"><div class="k">Customers</div><div class="v">${fmtNum(c.customers)}</div></div>
+      <div class="m"><div class="k">Transactions</div><div class="v">${fmtNum(c.txnsK*1000)}</div></div>
+      <div class="m"><div class="k">Spend / customer</div><div class="v">${fmtCommas(metricVal(c,'spc'))}</div></div>
+    </div>
+    <div class="sec-title">${topTitle}</div>
+    ${topRows}
+    <div class="sec-title">Top brands</div>
+    ${barRows(c.brands.slice(0,5),()=> '#1f6f5c')}
+    <div class="sec-title">Demographics</div>
+    ${demoHtml(d)}
+    <div class="pulse">
+      <span class="tag">PULSE OFFER OPPORTUNITY</span>
+      <p>Customers in <b>${c.name}</b> spend <span class="hl">${off.index.toFixed(1)}×</span> the portfolio average on <span class="hl">${off.category}</span>${topSub?` (esp. ${topSub.name})`:''}. This audience skews <span class="hl">${d.dominantAge}</span>, ${Math.round(100*d.male)}% male, ${d.nationalities[0].name} the top nationality. Fund a merchant offer with <span class="hl">${off.merchant}</span> to convert it.</p>
+      <div class="stats">
+        <div class="s"><div class="k">Targetable</div><div class="v">${fmtNum(off.audience)}</div></div>
+        <div class="s"><div class="k">${off.category} index</div><div class="v">${off.index.toFixed(1)}×</div></div>
+        <div class="s"><div class="k">Skews</div><div class="v">${d.dominantAge}</div></div>
+      </div>
+      <button onclick="alert('Prototype: opens the Pulse campaign builder pre-filled with ${c.name} · ${off.category} · ${off.merchant} · ${fmtNum(off.audience)} customers (${d.dominantAge}, ${Math.round(100*d.male)}% male).')">Create Pulse campaign →</button>
+    </div>
+    <div class="note">Mock data. City-level merchant spend only; demographics from Customer Explorer (assumed).</div>`;
+}
+
+/* ---------- kpis + legend ---------- */
+function renderKpis(){
+  const cs=cities(); const ts=cs.reduce((s,c)=>s+c.spendM,0);
+  const cust=cs.reduce((s,c)=>s+c.customers,0);
+  const top=[...cs].sort((a,b)=>b.spendM-a.spendM)[0];
+  const reach=cs.reduce((s,c)=>s+c.offer.audience,0);
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi"><div class="k">Total Spend</div><div class="v">${fmtAED(ts)}</div></div>
+    <div class="kpi"><div class="k">Spend / Customer</div><div class="v">${fmtCommas(ts*1e6/cust)}</div></div>
+    <div class="kpi"><div class="k">Top City</div><div class="v">${top.name}</div></div>
+    <div class="kpi"><div class="k">Pulse-targetable customers</div><div class="v">${fmtNum(reach)}</div></div>`;
+}
+function renderLegend(){
+  const L=document.getElementById('legend');
+  const metricWord=state.category!=='all'?state.category+' spend':'total spend';
+  if(state.colour==='heat'){
+    const foot='<div class="foot">City heat = '+metricWord+' per city</div>';
+    L.innerHTML='<div class="hd">Spend heat · by city</div><div class="grad"></div><div class="grad-lbl"><span>Low</span><span>High</span></div>'+foot; return;
+  }
+  const foot='<div class="foot">Country shading = '+metricWord+'</div>';
+  if(state.colour==='offer'){
+    L.innerHTML='<div class="hd">Offer potential</div><div class="li"><span class="sw" style="background:#7b3ff2"></span>High (≥2.0×)</div><div class="li"><span class="sw" style="background:#a878f5"></span>Medium (1.6–2.0×)</div><div class="li"><span class="sw" style="background:#cdb6f8"></span>Lower (&lt;1.6×)</div>'+foot; return;
+  }
+  const cats=[...new Set(cities().map(c=>c.offer.category))];
+  L.innerHTML='<div class="hd">Category affinity</div>'+cats.map(c=>`<div class="li"><span class="sw" style="background:${CAT_COLORS[c]||'#888'}"></span>${c}</div>`).join('')+foot;
+}
+
+/* ---------- controls ---------- */
+function setCategory(cat){
+  state.category=cat;
+  document.getElementById('catSel').value=cat;
+  refreshMap(); renderLegend();
+  if(state.selected) selectCity(state.selected);
+}
+document.getElementById('bankSel').addEventListener('change',e=>{
+  state.bank=e.target.value; state.selected=null; state.category='all';
+  document.getElementById('catSel').value='all';
+  refreshMap(); map.flyTo(BANKS[state.bank].center,BANKS[state.bank].zoom,{duration:.6});
+  renderKpis(); renderLegend(); emptyPanel();
+});
+document.getElementById('catSel').addEventListener('change',e=>setCategory(e.target.value));
+document.querySelectorAll('#metricSeg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#metricSeg button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); state.metric=b.dataset.m; refreshMap(); renderLegend();
+}));
+document.querySelectorAll('#colourSeg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#colourSeg button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); state.colour=b.dataset.c; refreshMap(); renderLegend();
+}));
+
+/* ---------- init ---------- */
+(function init(){
+  const sel=document.getElementById('catSel');
+  sel.innerHTML='<option value="all">All categories</option>'+Object.keys(BASE_MIX).map(c=>`<option value="${c}">${c}</option>`).join('');
+  drawHalos(); drawMarkers(); renderKpis(); renderLegend(); emptyPanel();
+  map.flyTo(BANKS[state.bank].center,BANKS[state.bank].zoom,{duration:0});
+})();
+</script>
+</body>
+</html>
